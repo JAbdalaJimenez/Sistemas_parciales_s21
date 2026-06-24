@@ -125,7 +125,8 @@
         // Import Firebase SDKs
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js";
-        import { getDatabase, ref, set, get, push } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
+        import { getDatabase, ref, set, get, push, remove } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
+        import { getStorage, ref as storageRef, uploadBytes, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-storage.js";
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
@@ -143,6 +144,7 @@
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
         const db = getDatabase(app);
+        const storage = getStorage(app);
 
         // Set year
         document.getElementById('year').textContent = new Date().getFullYear();
@@ -706,40 +708,102 @@
             return questions;
         }
 
+        function renderSubjectsListHTML() {
+            let listHtml = '';
+            
+            const normalize = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+            
+            const getLevenshteinDistance = (a, b) => {
+                if (a.length === 0) return b.length;
+                if (b.length === 0) return a.length;
+                const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
+                for (let i = 0; i <= a.length; i += 1) matrix[0][i] = i;
+                for (let j = 0; j <= b.length; j += 1) matrix[j][0] = j;
+                for (let j = 1; j <= b.length; j += 1) {
+                    for (let i = 1; i <= a.length; i += 1) {
+                        const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+                        matrix[j][i] = Math.min(
+                            matrix[j][i - 1] + 1,
+                            matrix[j - 1][i] + 1,
+                            matrix[j - 1][i - 1] + indicator
+                        );
+                    }
+                }
+                return matrix[b.length][a.length];
+            };
+
+            const query = normalize(state.searchQuery || '');
+            
+            const filtered = state.subjects.filter(s => {
+                if (!query) return true;
+                const name = normalize(s.name);
+                if (name.includes(query)) return true;
+                
+                const words = name.split(' ');
+                const maxDist = Math.max(1, Math.floor(query.length / 4));
+                
+                for (let w of words) {
+                    if (w.length >= query.length - maxDist) {
+                        let dist = getLevenshteinDistance(query, w.substring(0, query.length));
+                        if (dist <= maxDist) return true;
+                    }
+                }
+                
+                if (name.length >= query.length) {
+                    if (getLevenshteinDistance(query, name.substring(0, query.length)) <= maxDist) return true;
+                }
+                
+                return false;
+            });
+            
+            if (filtered.length === 0) {
+                listHtml = `<div class="text-center text-slate-500 py-8">No se encontraron materias que coincidan.</div>`;
+            } else {
+                filtered.forEach(subject => {
+                    listHtml += `
+                        <div class="bg-white border border-slate-200 rounded-lg p-6 shadow-sm cursor-pointer hover:shadow-md hover:border-navy-500 transition-all flex items-center justify-between group" onclick="selectSubject(${subject.id})">
+                            <div class="flex items-center gap-4">
+                                <div class="bg-navy-50 p-3 rounded-md text-navy-800 group-hover:bg-navy-800 group-hover:text-white transition-colors">
+                                    <i data-lucide="book" class="h-6 w-6"></i>
+                                </div>
+                                <span class="text-lg font-medium text-navy-900">${subject.name}</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button onclick="deleteSubject(event, ${subject.id}, '${subject.name.replace(/'/g, "\\'")}')" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Eliminar materia">
+                                    <i data-lucide="trash-2" class="h-5 w-5"></i>
+                                </button>
+                                <i data-lucide="chevron-right" class="text-slate-400 group-hover:text-navy-500 transition-colors"></i>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            return listHtml;
+        }
+
         // --- DASHBOARD VIEW ---
         function renderDashboard() {
             const wrapper = document.createElement('div');
             wrapper.className = "fade-in max-w-2xl mx-auto space-y-8";
             
             let html = `
-                <div class="border-b border-slate-200 pb-4">
-                    <h2 class="text-3xl font-bold text-navy-900 tracking-tight">Materias Disponibles</h2>
-                    <p class="text-slate-500 mt-2">Selecciona una materia para comenzar a practicar.</p>
-                </div>
-                <div class="grid gap-4">
-            `;
+            <div class="border-b border-slate-200 pb-4">
+                <h2 class="text-3xl font-bold text-navy-900 tracking-tight">Materias Disponibles</h2>
+                <p class="text-slate-500 mt-2">Selecciona una materia para comenzar a practicar.</p>
+            </div>
+            
+            <div class="relative mt-4">
+                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400"></i>
+                <input type="text" id="subject-search" value="${state.searchQuery || ''}" onkeyup="filterSubjects(this.value)" placeholder="Buscar materias..." class="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white transition-shadow">
+            </div>
 
-            state.subjects.forEach(subject => {
-                html += `
-                    <div class="bg-white border border-slate-200 rounded-lg p-6 shadow-sm cursor-pointer hover:shadow-md hover:border-navy-500 transition-all flex items-center justify-between group" onclick="selectSubject(${subject.id})">
-                        <div class="flex items-center gap-4">
-                            <div class="bg-navy-50 p-3 rounded-md text-navy-800 group-hover:bg-navy-800 group-hover:text-white transition-colors">
-                                <i data-lucide="book" class="h-6 w-6"></i>
-                            </div>
-                            <span class="text-lg font-medium text-navy-900">${subject.name}</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <button onclick="deleteSubject(event, ${subject.id}, '${subject.name.replace(/'/g, "\\'")}')" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Eliminar materia">
-                                <i data-lucide="trash-2" class="h-5 w-5"></i>
-                            </button>
-                            <i data-lucide="chevron-right" class="text-slate-400 group-hover:text-navy-500 transition-colors"></i>
-                        </div>
-                    </div>
-                `;
-            });
-
-            html += `
-                </div>
+            <div class="grid gap-4 mt-4" id="subjects-list">
+        `;
+        
+        html += renderSubjectsListHTML();
+        
+        html += `
+            </div>
                 
                 <div class="bg-slate-50 border border-slate-200 rounded-lg shadow-sm">
                     <button type="button" class="w-full flex items-center justify-between p-6 text-left hover:bg-slate-100 transition-colors rounded-lg" onclick="document.getElementById('admin-panel-content').classList.toggle('hidden'); lucide.createIcons();">
@@ -937,9 +1001,11 @@
                 </button>
                 <div class="mb-8 border-b border-slate-200 pb-4">
                     <h2 class="text-3xl font-bold text-navy-900 tracking-tight">${subject ? subject.name : ''}</h2>
-                    <p class="text-slate-500 mt-2">Selecciona la instancia a evaluar.</p>
+                    <p class="text-slate-500 mt-2">Selecciona la instancia a evaluar o gestiona los resúmenes de la materia.</p>
                 </div>
-                <div class="grid gap-4">
+                
+                <h3 class="text-xl font-bold text-navy-900 mb-4">Instancias de Evaluación</h3>
+                <div class="grid gap-4 mb-10">
             `;
 
             if (subject && subject.exams) {
@@ -958,10 +1024,22 @@
                 });
             }
 
-            html += `</div>`;
+            html += `</div>
+            `;
             wrapper.innerHTML = html;
             container.appendChild(wrapper);
         }
+
+        // --- FILE UPLOAD LOGIC ---
+        function filterSubjects(query) {
+            state.searchQuery = query;
+            const listContainer = document.getElementById('subjects-list');
+            if (listContainer) {
+                listContainer.innerHTML = renderSubjectsListHTML();
+                lucide.createIcons();
+            }
+        }
+
 
         // --- QUIZ VIEW ---
         function renderQuiz() {
@@ -1409,6 +1487,7 @@
         window.exitQuizToDashboard = exitQuizToDashboard;
         window.clearHistory = clearHistory;
         window.deleteSubject = deleteSubject;
+        window.filterSubjects = filterSubjects;
 
         // Initialize App by loading data from Firebase
         loadDataFromFirebase();
