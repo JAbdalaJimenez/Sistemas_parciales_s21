@@ -665,7 +665,6 @@
             }
         }
 
-        // Text to JSON parser for questions
         function parseQuestionsText(text) {
             try {
                 const json = JSON.parse(text);
@@ -874,9 +873,16 @@
                     if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
                         throw new Error('El texto no tiene un formato válido de JSON ni de preguntas en texto plano.');
                     }
-                    for (const q of parsedQuestions) {
-                        if (!q.text || !q.correctId || !q.justification || !Array.isArray(q.options) || q.options.length < 2) {
-                            throw new Error('Cada pregunta debe contener: text, correctId, justification, y options.');
+                    for (let i = 0; i < parsedQuestions.length; i++) {
+                        const q = parsedQuestions[i];
+                        const missing = [];
+                        if (!q.text || q.text.trim() === '') missing.push("texto de la pregunta");
+                        if (!q.correctId || q.correctId.trim() === '') missing.push("respuesta correcta");
+                        if (!q.justification || q.justification.trim() === '' || q.justification === 'Sin justificación.') missing.push("justificación");
+                        if (!Array.isArray(q.options) || q.options.length < 2) missing.push("al menos dos opciones");
+
+                        if (missing.length > 0) {
+                            throw new Error(`A la pregunta ${i + 1} le falta: ${missing.join(", ")}.`);
                         }
                     }
                 } catch (err) {
@@ -1020,7 +1026,7 @@
 
                 html += `
                     <div class="${cardClass}" onclick="selectOption('${opt.id}')">
-                        ${iconHtml}
+                        <div class="icon-container flex-shrink-0">${iconHtml}</div>
                         <div class="flex-grow">${opt.text}</div>
                     </div>
                 `;
@@ -1051,9 +1057,9 @@
             }
 
             html += `
-                <div class="mt-auto flex justify-end pb-4">
+                <div class="mt-auto flex justify-end pb-4" id="action-btn-container">
                     ${!qState.isEvaluated ? `
-                        <button onclick="evaluateAnswer()" class="bg-navy-900 text-white px-8 py-3 rounded-lg font-semibold shadow hover:bg-navy-800 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" ${!qState.selectedOption ? 'disabled' : ''}>
+                        <button id="confirm-btn" onclick="evaluateAnswer()" class="bg-navy-900 text-white px-8 py-3 rounded-lg font-semibold shadow hover:bg-navy-800 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" ${!qState.selectedOption ? 'disabled' : ''}>
                             <i data-lucide="check-square" class="h-5 w-5"></i> Confirmar Respuesta
                         </button>
                     ` : `
@@ -1195,7 +1201,33 @@
         function selectOption(optId) {
             if (state.quiz.isEvaluated) return;
             state.quiz.selectedOption = optId;
-            render();
+            
+            const currentQ = state.quiz.questions[state.quiz.currentIndex];
+            const optionsContainer = document.getElementById('options-container');
+            if (optionsContainer) {
+                const children = optionsContainer.children;
+                currentQ.options.forEach((opt, index) => {
+                    const el = children[index];
+                    let cardClass = "option-card border border-slate-200 rounded-lg p-4 cursor-pointer text-slate-700 font-medium flex items-center gap-4 relative overflow-hidden";
+                    let iconHtml = `<div class="w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center flex-shrink-0 transition-colors"></div>`;
+                    
+                    if (opt.id === optId) {
+                        cardClass += " selected";
+                        iconHtml = `<div class="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center flex-shrink-0"><div class="w-2.5 h-2.5 bg-white rounded-full"></div></div>`;
+                    }
+                    
+                    el.className = cardClass;
+                    const iconContainer = el.querySelector('.icon-container');
+                    if (iconContainer) iconContainer.innerHTML = iconHtml;
+                });
+                
+                const confirmBtn = document.getElementById('confirm-btn');
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                }
+            } else {
+                render();
+            }
         }
 
         function evaluateAnswer() {
@@ -1209,7 +1241,64 @@
                 state.quiz.incorrectCount++;
             }
             
-            render();
+            const optionsContainer = document.getElementById('options-container');
+            if (optionsContainer) {
+                const children = optionsContainer.children;
+                currentQ.options.forEach((opt, index) => {
+                    const el = children[index];
+                    let cardClass = "option-card border border-slate-200 rounded-lg p-4 cursor-pointer text-slate-700 font-medium flex items-center gap-4 relative overflow-hidden evaluated pointer-events-none";
+                    let iconHtml = `<div class="w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center flex-shrink-0 transition-colors"></div>`;
+                    
+                    if (opt.id === currentQ.correctId) {
+                        cardClass += " correct";
+                        iconHtml = `<div class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0"><i data-lucide="check" class="h-4 w-4"></i></div>`;
+                    } else if (opt.id === state.quiz.selectedOption) {
+                        cardClass += " incorrect";
+                        iconHtml = `<div class="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0"><i data-lucide="x" class="h-4 w-4"></i></div>`;
+                    } else {
+                        cardClass += " opacity-50";
+                    }
+                    
+                    el.className = cardClass;
+                    const iconContainer = el.querySelector('.icon-container');
+                    if (iconContainer) iconContainer.innerHTML = iconHtml;
+                });
+                
+                const isCorrect = state.quiz.selectedOption === currentQ.correctId;
+                const feedbackColor = isCorrect ? "bg-green-50 border-green-200 text-green-900" : "bg-red-50 border-red-200 text-red-900";
+                const feedbackTitleColor = isCorrect ? "text-green-700" : "text-red-700";
+                const feedbackIcon = isCorrect ? "check-circle" : "alert-circle";
+                
+                const feedbackHtml = `
+                    <div class="fade-in mb-6 ${feedbackColor} border rounded-xl p-6 shadow-sm" id="feedback-container">
+                        <div class="flex items-center gap-2 mb-3 ${feedbackTitleColor}">
+                            <i data-lucide="${feedbackIcon}" class="h-5 w-5"></i>
+                            <h4 class="font-bold uppercase tracking-wider text-sm">Justificación Teórica</h4>
+                        </div>
+                        <div class="leading-relaxed">
+                            ${currentQ.justification}
+                        </div>
+                    </div>
+                `;
+                
+                optionsContainer.parentElement.insertAdjacentHTML('beforeend', feedbackHtml);
+                
+                const btnContainer = document.getElementById('action-btn-container');
+                if (btnContainer) {
+                    btnContainer.innerHTML = `
+                        <button onclick="nextQuestion()" class="bg-gold-500 text-white px-8 py-3 rounded-lg font-semibold shadow hover:bg-gold-400 hover:shadow-md transition-all flex items-center gap-2">
+                            ${state.quiz.currentIndex < state.quiz.questions.length - 1 ? 'Siguiente Pregunta <i data-lucide="arrow-right" class="h-5 w-5"></i>' : 'Finalizar Examen <i data-lucide="flag" class="h-5 w-5"></i>'}
+                        </button>
+                    `;
+                }
+                
+                lucide.createIcons();
+                if (window.MathJax) {
+                    MathJax.typesetPromise();
+                }
+            } else {
+                render();
+            }
         }
 
         function nextQuestion() {
