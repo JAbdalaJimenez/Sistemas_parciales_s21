@@ -62,6 +62,16 @@ async function initializeDatabase() {
                 }
             };
             await set(subjectsRef, initialSubjects);
+        } else {
+            const algebraSubjectRef = ref(db, 'subjects/2');
+            const algebraSubjectSnap = await get(algebraSubjectRef);
+            if (!algebraSubjectSnap.exists()) {
+                await set(algebraSubjectRef, {
+                    id: 2,
+                    name: "Álgebra I",
+                    exams: ["Primer Parcial", "Segundo Parcial", "Final Integrador"]
+                });
+            }
         }
 
         // Seed questions under /questions/1/Segundo Parcial
