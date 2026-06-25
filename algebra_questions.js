@@ -1,4 +1,4 @@
-export const algebraQuestions = [
+const algebraQuestions = [
     {
         "id": 1,
         "text": "Si una matriz cuadrada $A$ de orden 3 tiene un determinante igual a 5 ($|A| = 5$), ¿cuál es el determinante de su transpuesta $|A^T|$?",
