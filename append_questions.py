@@ -347,7 +347,7 @@ def parse_questions():
         json.dump(existing_questions, f, ensure_ascii=False, indent=4)
         
     with open('algebra_questions.js', 'w', encoding='utf-8') as f:
-        f.write('export const algebraQuestions = ')
+        f.write('window.algebraQuestions = ')
         json.dump(existing_questions, f, ensure_ascii=False, indent=4)
         f.write(';')
         
