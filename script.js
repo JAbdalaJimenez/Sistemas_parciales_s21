@@ -84,7 +84,7 @@ async function initializeDatabase() {
         // Seed questions under /questions/2/Segundo Parcial
         const seedAlgebraRef = ref(db, 'questions/2/Segundo Parcial');
         const seedAlgebraSnap = await get(seedAlgebraRef);
-        if (!seedAlgebraSnap.exists()) {
+        if (!seedAlgebraSnap.exists() || (Array.isArray(seedAlgebraSnap.val()) && seedAlgebraSnap.val().length < window.algebraQuestions.length)) {
             await set(seedAlgebraRef, window.algebraQuestions);
         }
     } catch (err) {
