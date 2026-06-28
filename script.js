@@ -317,18 +317,17 @@ function renderDashboard() {
                 parsedQuestions = JSON.parse(rawText);
             } else {
                 // Parse as plain text with Regex
-                const blocks = rawText.split(/(?:Pregunta\s*\d+\.?|(?<=\D|^)\d+\.\s+)/gi).filter(b => b.trim().length > 0);
+                const blocks = rawText.split(/(?:Pregunta\s*\d+\.?\s*|(?<=\D|^)\d+[\.\)-](?=\s|¿|¡|[a-zA-Z]))/gi).filter(b => b.trim().length > 0);
                 for (let match of blocks) {
                     let qBlock = match;
-                    let ansMatch = qBlock.match(/Respuesta correcta:\s*([A-Z])/i);
-                    let correct = ansMatch ? ansMatch[1].toUpperCase() : '';
-                    
-                    let justMatch = qBlock.match(/Justificaci[óo]n:\s*([\s\S]*)/i);
-                    let just = justMatch ? justMatch[1].trim() : '';
                     
                     let beforeAns = qBlock.split(/Respuesta correcta:/i)[0];
                     let parts = beforeAns.split(/\s*([A-F]\s*\))\s*/i);
                     let qText = parts[0].trim();
+                    
+                    // Limpiar "Opciones:" del final si está presente
+                    qText = qText.replace(/\s*Opciones:\s*$/i, '');
+                    
                     let options = [];
                     for (let i = 1; i < parts.length; i += 2) {
                         if (parts[i] && parts[i+1] !== undefined) {
@@ -338,6 +337,23 @@ function renderDashboard() {
                             });
                         }
                     }
+                    
+                    let correct = '';
+                    let ansMatch = qBlock.match(/Respuesta correcta:\s*([A-Z])(?=\s|$|\n|\r)/i);
+                    if (ansMatch) {
+                        correct = ansMatch[1].toUpperCase();
+                    } else {
+                        // Buscar si pusieron el texto en vez de la letra
+                        let textMatch = qBlock.match(/Respuesta correcta:\s*(.+?)(?=\s*Justificaci[óo]n:|$)/is);
+                        if (textMatch) {
+                            let ansText = textMatch[1].trim();
+                            let foundOpt = options.find(o => o.text === ansText || o.text.includes(ansText) || ansText.includes(o.text));
+                            if (foundOpt) correct = foundOpt.id;
+                        }
+                    }
+                    
+                    let justMatch = qBlock.match(/Justificaci[óo]n:\s*([\s\S]*)/i);
+                    let just = justMatch ? justMatch[1].trim() : '';
                     
                     parsedQuestions.push({
                         id: 0, // will be reassigned
