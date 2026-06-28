@@ -323,23 +323,23 @@ def parse_questions():
         
     start_id = len(existing_questions) + 1
     
-    for i, m in enumerate(matches):
-        qBlock = m
-        ansMatch = re.search(r'Respuesta correcta:\s*([A-Z])', qBlock, re.IGNORECASE)
+    blocks = [b for b in re.split(r'(?:Pregunta\s*\d+\.?|(?<=\D|^)\d+\.\s+)', text, flags=re.IGNORECASE) if b.strip()]
+    for i, match in enumerate(blocks):
+        ansMatch = re.search(r'Respuesta correcta:\s*([A-Z])', match, re.IGNORECASE)
         correct = ansMatch.group(1).upper() if ansMatch else ''
         
-        justMatch = re.search(r'Justificaci[óo]n:\s*([\s\S]*)', qBlock, re.IGNORECASE)
+        justMatch = re.search(r'Justificaci[óo]n:\s*([\s\S]*)', match, re.IGNORECASE)
         just = justMatch.group(1).strip() if justMatch else ''
         
-        beforeAns = re.split(r'Respuesta correcta:', qBlock, flags=re.IGNORECASE)[0]
-        parts = re.split(r'\s*([A-Z]\s*[\)\.-]\s*)', beforeAns, flags=re.IGNORECASE)
+        beforeAns = re.split(r'Respuesta correcta:', match, flags=re.IGNORECASE)[0]
+        parts = re.split(r'\s*([A-F]\s*\))\s*', beforeAns, flags=re.IGNORECASE)
         qText = parts[0].strip()
         
         options = []
-        for i in range(1, len(parts), 2):
-            if i + 1 < len(parts):
-                opt_id = re.sub(r'[^A-Za-z]', '', parts[i]).upper()
-                opt_text = parts[i+1].strip()
+        for j in range(1, len(parts), 2):
+            if j + 1 < len(parts):
+                opt_id = re.sub(r'[^A-Za-z]', '', parts[j]).upper()
+                opt_text = parts[j+1].strip()
                 options.append({"id": opt_id, "text": opt_text})
         
         questions.append({

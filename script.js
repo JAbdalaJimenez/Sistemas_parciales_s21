@@ -317,10 +317,9 @@ function renderDashboard() {
                 parsedQuestions = JSON.parse(rawText);
             } else {
                 // Parse as plain text with Regex
-                const regex = /Pregunta\s*\d+\s*([\s\S]*?)(?=\s*Pregunta\s*\d+|$)/gis;
-                let match;
-                while ((match = regex.exec(rawText)) !== null) {
-                    let qBlock = match[1];
+                const blocks = rawText.split(/(?:Pregunta\s*\d+\.?|(?<=\D|^)\d+\.\s+)/gi).filter(b => b.trim().length > 0);
+                for (let match of blocks) {
+                    let qBlock = match;
                     let ansMatch = qBlock.match(/Respuesta correcta:\s*([A-Z])/i);
                     let correct = ansMatch ? ansMatch[1].toUpperCase() : '';
                     
@@ -328,7 +327,7 @@ function renderDashboard() {
                     let just = justMatch ? justMatch[1].trim() : '';
                     
                     let beforeAns = qBlock.split(/Respuesta correcta:/i)[0];
-                    let parts = beforeAns.split(/\s*([A-Z]\s*[\)\.-]\s*)/i);
+                    let parts = beforeAns.split(/\s*([A-F]\s*\))\s*/i);
                     let qText = parts[0].trim();
                     let options = [];
                     for (let i = 1; i < parts.length; i += 2) {
