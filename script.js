@@ -363,8 +363,9 @@ function renderDashboard() {
         }
 
         if (name) {
-            // Check for existing subject (case-insensitive) to avoid duplicates
-            let existingSubject = state.subjects.find(s => s.name.toLowerCase() === name.toLowerCase());
+            // Check for existing subject (case-insensitive and ignoring accents) to avoid duplicates
+            const normalizeString = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+            let existingSubject = state.subjects.find(s => normalizeString(s.name) === normalizeString(name));
             let subjectId;
             
             if (existingSubject) {
@@ -666,12 +667,13 @@ async function startQuiz(examName) {
         const questionsSnap = await get(ref(db, `questions/${state.selectedSubject}/${examName}`));
         if (questionsSnap.exists()) {
             const val = questionsSnap.val();
-            state.quiz.questions = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+            let arr = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+            state.quiz.questions = JSON.parse(JSON.stringify(arr));
         } else {
             if (state.selectedSubject == 1 && examName === 'Segundo Parcial') {
-                state.quiz.questions = [...questionsData];
+                state.quiz.questions = JSON.parse(JSON.stringify(questionsData));
             } else if (state.selectedSubject == 2 && examName === 'Segundo Parcial') {
-                state.quiz.questions = [...window.algebraQuestions];
+                state.quiz.questions = JSON.parse(JSON.stringify(window.algebraQuestions));
             } else {
                 alert("No hay preguntas cargadas en la base de datos para esta instancia del examen.");
                 return;
@@ -680,9 +682,9 @@ async function startQuiz(examName) {
     } catch (err) {
         console.error("Error al obtener preguntas de Firebase:", err);
         if (state.selectedSubject == 1 && examName === 'Segundo Parcial') {
-            state.quiz.questions = [...questionsData];
+            state.quiz.questions = JSON.parse(JSON.stringify(questionsData));
         } else if (state.selectedSubject == 2 && examName === 'Segundo Parcial') {
-            state.quiz.questions = [...window.algebraQuestions];
+            state.quiz.questions = JSON.parse(JSON.stringify(window.algebraQuestions));
         } else {
             alert("Error al conectar con la base de datos para cargar las preguntas.");
             return;
@@ -866,6 +868,24 @@ async function finishQuiz() {
 }
 
 function restartQuiz() {
+    // Mezclar las preguntas de forma aleatoria (Shuffle)
+    if (state.quiz.questions && state.quiz.questions.length > 0) {
+        for (let i = state.quiz.questions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [state.quiz.questions[i], state.quiz.questions[j]] = [state.quiz.questions[j], state.quiz.questions[i]];
+        }
+        
+        // Mezclar las opciones (respuestas) dentro de cada pregunta
+        state.quiz.questions.forEach(q => {
+            if (q.options && q.options.length > 0) {
+                for (let i = q.options.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [q.options[i], q.options[j]] = [q.options[j], q.options[i]];
+                }
+            }
+        });
+    }
+
     state.quiz.currentIndex = 0;
     state.quiz.selectedOption = null;
     state.quiz.isEvaluated = false;
