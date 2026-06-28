@@ -332,17 +332,16 @@ def parse_questions():
         just = justMatch.group(1).strip() if justMatch else ''
         
         beforeAns = re.split(r'Respuesta correcta:', qBlock, flags=re.IGNORECASE)[0]
-        parts = re.split(r'\s*([A-Z]\)\s*)', beforeAns, flags=re.IGNORECASE)
+        parts = re.split(r'\s*([A-Z]\s*[\)\.-]\s*)', beforeAns, flags=re.IGNORECASE)
         qText = parts[0].strip()
         
         options = []
-        for j in range(1, len(parts)-1, 2):
-            if parts[j] and parts[j+1] is not None:
-                options.append({
-                    'id': parts[j].replace(')', '').strip().upper(),
-                    'text': parts[j+1].strip()
-                })
-                
+        for i in range(1, len(parts), 2):
+            if i + 1 < len(parts):
+                opt_id = re.sub(r'[^A-Za-z]', '', parts[i]).upper()
+                opt_text = parts[i+1].strip()
+                options.append({"id": opt_id, "text": opt_text})
+        
         questions.append({
             'id': start_id + i,
             'text': qText,

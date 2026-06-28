@@ -328,13 +328,13 @@ function renderDashboard() {
                     let just = justMatch ? justMatch[1].trim() : '';
                     
                     let beforeAns = qBlock.split(/Respuesta correcta:/i)[0];
-                    let parts = beforeAns.split(/\s*([A-Z]\)\s*)/i);
+                    let parts = beforeAns.split(/\s*([A-Z]\s*[\)\.-]\s*)/i);
                     let qText = parts[0].trim();
                     let options = [];
                     for (let i = 1; i < parts.length; i += 2) {
                         if (parts[i] && parts[i+1] !== undefined) {
                             options.push({
-                                id: parts[i].replace(')', '').trim().toUpperCase(),
+                                id: parts[i].replace(/[^A-Za-z]/g, '').toUpperCase(),
                                 text: parts[i+1].trim()
                             });
                         }
