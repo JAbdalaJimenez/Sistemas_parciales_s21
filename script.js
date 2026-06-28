@@ -317,7 +317,7 @@ function renderDashboard() {
                 parsedQuestions = JSON.parse(rawText);
             } else {
                 // Parse as plain text with Regex
-                const blocks = rawText.split(/(?:Pregunta\s*\d+\.?\s*|(?<=\D|^)\d+[\.\)-](?=\s|¿|¡|[a-zA-Z]))/gi).filter(b => b.trim().length > 0);
+                const blocks = rawText.split(/(?:Pregunta\s*\d+\.?\s*|(?<=^|\n)\s*\d+[\.\)-]\s*)/gi).filter(b => b.trim().length > 0);
                 for (let match of blocks) {
                     let qBlock = match;
                     
