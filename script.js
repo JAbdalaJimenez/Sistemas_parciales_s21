@@ -317,24 +317,35 @@ function renderDashboard() {
                 parsedQuestions = JSON.parse(rawText);
             } else {
                 // Parse as plain text with Regex
-                const regex = /Pregunta\s*\d+\s*(.*?)(?=A\))A\)\s*(.*?)(?=B\))B\)\s*(.*?)(?=C\))C\)\s*(.*?)(?=D\)|Respuesta correcta:)(?:D\)\s*(.*?))?Respuesta correcta:\s*([A-D])(?:\s*Justificación:\s*(.*?))?(?=\s*Pregunta\s*\d+|$)/gis;
+                const regex = /Pregunta\s*\d+\s*([\s\S]*?)(?=\s*Pregunta\s*\d+|$)/gis;
                 let match;
                 while ((match = regex.exec(rawText)) !== null) {
-                    let [full, q_text, a, b, c, d, correct, just] = match;
-                    const options = [
-                        { id: 'A', text: (a || '').trim() },
-                        { id: 'B', text: (b || '').trim() },
-                        { id: 'C', text: (c || '').trim() }
-                    ];
-                    if (d) {
-                        options.push({ id: 'D', text: d.trim() });
+                    let qBlock = match[1];
+                    let ansMatch = qBlock.match(/Respuesta correcta:\s*([A-Z])/i);
+                    let correct = ansMatch ? ansMatch[1].toUpperCase() : '';
+                    
+                    let justMatch = qBlock.match(/Justificaci[óo]n:\s*([\s\S]*)/i);
+                    let just = justMatch ? justMatch[1].trim() : '';
+                    
+                    let beforeAns = qBlock.split(/Respuesta correcta:/i)[0];
+                    let parts = beforeAns.split(/\s*([A-Z]\)\s*)/);
+                    let qText = parts[0].trim();
+                    let options = [];
+                    for (let i = 1; i < parts.length; i += 2) {
+                        if (parts[i] && parts[i+1] !== undefined) {
+                            options.push({
+                                id: parts[i].replace(')', '').trim().toUpperCase(),
+                                text: parts[i+1].trim()
+                            });
+                        }
                     }
+                    
                     parsedQuestions.push({
                         id: 0, // will be reassigned
-                        text: (q_text || '').trim(),
-                        options,
-                        correctId: (correct || '').trim().toUpperCase(),
-                        justification: (just || '').trim()
+                        text: qText,
+                        options: options,
+                        correctId: correct,
+                        justification: just
                     });
                 }
             }
@@ -677,6 +688,24 @@ async function startQuiz(examName) {
             alert("Error al conectar con la base de datos para cargar las preguntas.");
             return;
         }
+    }
+
+    // Mezclar las preguntas de forma aleatoria (Shuffle)
+    if (state.quiz.questions && state.quiz.questions.length > 0) {
+        for (let i = state.quiz.questions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [state.quiz.questions[i], state.quiz.questions[j]] = [state.quiz.questions[j], state.quiz.questions[i]];
+        }
+        
+        // Mezclar las opciones (respuestas) dentro de cada pregunta
+        state.quiz.questions.forEach(q => {
+            if (q.options && q.options.length > 0) {
+                for (let i = q.options.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [q.options[i], q.options[j]] = [q.options[j], q.options[i]];
+                }
+            }
+        });
     }
 
     state.quiz.currentIndex = 0;

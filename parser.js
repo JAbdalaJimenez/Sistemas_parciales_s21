@@ -2,28 +2,29 @@ const fs = require('fs');
 
 const text = fs.readFileSync('questions.txt', 'utf8');
 const questions = [];
-const regex = /Pregunta\s*\d+\s*(.*?)(?=A\))A\)\s*(.*?)(?=B\))B\)\s*(.*?)(?=C\))C\)\s*(.*?)(?=D\)|Respuesta correcta:)(?:D\)\s*(.*?))?Respuesta correcta:\s*([A-D])(?:\s*Justificación:\s*(.*?))?(?=\s*Pregunta\s*\d+|$)/gis;
+const regex = /Pregunta\s*\d+\s*([\s\S]*?)(?=\s*Pregunta\s*\d+|$)/gis;
 
 let match;
 let count = 1;
 while ((match = regex.exec(text)) !== null) {
-    let [full, q_text, a, b, c, d, correct, just] = match;
+    let qBlock = match[1];
+    let ansMatch = qBlock.match(/Respuesta correcta:\s*([A-Z])/i);
+    let correct = ansMatch ? ansMatch[1].toUpperCase() : '';
     
-    q_text = q_text ? q_text.trim() : '';
-    a = a ? a.trim() : '';
-    b = b ? b.trim() : '';
-    c = c ? c.trim() : '';
-    d = d ? d.trim() : null;
-    correct = correct ? correct.trim() : '';
-    just = just ? just.trim() : '';
-
-    const options = [
-        { id: 'A', text: a },
-        { id: 'B', text: b },
-        { id: 'C', text: c }
-    ];
-    if (d) {
-        options.push({ id: 'D', text: d });
+    let justMatch = qBlock.match(/Justificaci[óo]n:\s*([\s\S]*)/i);
+    let just = justMatch ? justMatch[1].trim() : '';
+    
+    let beforeAns = qBlock.split(/Respuesta correcta:/i)[0];
+    let parts = beforeAns.split(/\s*([A-Z]\)\s*)/);
+    let qText = parts[0].trim();
+    let options = [];
+    for (let i = 1; i < parts.length; i += 2) {
+        if (parts[i] && parts[i+1] !== undefined) {
+            options.push({
+                id: parts[i].replace(')', '').trim().toUpperCase(),
+                text: parts[i+1].trim()
+            });
+        }
     }
 
     questions.push({

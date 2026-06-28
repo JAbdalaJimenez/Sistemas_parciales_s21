@@ -311,8 +311,8 @@ def parse_questions():
     questions = []
     
     # regex for new format
-    pattern = r'PREGUNTA\s*\d+\s*(.*?)(?=A\))A\)\s*(.*?)(?=B\))B\)\s*(.*?)(?=C\))C\)\s*(.*?)(?=D\)|Respuesta correcta:)(?:D\)\s*(.*?))?Respuesta correcta:\s*([A-D])(?:\s*Justificación:\s*(.*?))?(?=\s*PREGUNTA\s*\d+|$)'
-    matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+    pattern = r'PREGUNTA\s*\d+\s*([\s\S]*?)(?=\s*PREGUNTA\s*\d+|$)'
+    matches = re.findall(pattern, text, re.IGNORECASE)
     
     # read existing json to get next ID
     try:
@@ -324,18 +324,28 @@ def parse_questions():
     start_id = len(existing_questions) + 1
     
     for i, m in enumerate(matches):
-        q_text, a, b, c, d, correct, just = [s.strip() if s else s for s in m]
-        options = [
-            {'id': 'A', 'text': a},
-            {'id': 'B', 'text': b},
-            {'id': 'C', 'text': c}
-        ]
-        if d:
-            options.append({'id': 'D', 'text': d})
-            
+        qBlock = m
+        ansMatch = re.search(r'Respuesta correcta:\s*([A-Z])', qBlock, re.IGNORECASE)
+        correct = ansMatch.group(1).upper() if ansMatch else ''
+        
+        justMatch = re.search(r'Justificaci[óo]n:\s*([\s\S]*)', qBlock, re.IGNORECASE)
+        just = justMatch.group(1).strip() if justMatch else ''
+        
+        beforeAns = re.split(r'Respuesta correcta:', qBlock, flags=re.IGNORECASE)[0]
+        parts = re.split(r'\s*([A-Z]\)\s*)', beforeAns)
+        qText = parts[0].strip()
+        
+        options = []
+        for j in range(1, len(parts)-1, 2):
+            if parts[j] and parts[j+1] is not None:
+                options.append({
+                    'id': parts[j].replace(')', '').strip().upper(),
+                    'text': parts[j+1].strip()
+                })
+                
         questions.append({
             'id': start_id + i,
-            'text': q_text,
+            'text': qText,
             'options': options,
             'correctId': correct,
             'justification': just
