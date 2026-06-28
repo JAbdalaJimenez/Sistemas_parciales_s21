@@ -697,36 +697,39 @@
                 const json = JSON.parse(text);
                 if (Array.isArray(json)) return json;
             } catch(e) {}
-        
+            
             const questions = [];
-            const blocks = text.split(/(?=\b\d+\.\s)/).map(b => b.trim()).filter(b => b);
+            const blocks = text.split(/(?:Pregunta\s*\d+\.?|(?<=\D|^)\d+\.\s+)/gi).filter(b => b.trim().length > 0);
             
             let idCounter = 1;
-            for (let block of blocks) {
-                let qTextMatch = block.match(/^\d+\.\s*(.*?)(?=A\))/s);
-                let qText = qTextMatch ? qTextMatch[1].trim() : "";
-        
-                let optAMatch = block.match(/A\)\s*(.*?)(?=B\))/s);
-                let optBMatch = block.match(/B\)\s*(.*?)(?=C\))/s);
-                let optCMatch = block.match(/C\)\s*(.*?)(?=Respuesta Correcta:)/si);
-        
-                let respMatch = block.match(/Respuesta Correcta:\s*([A-C])/i);
+            for (let match of blocks) {
+                let qBlock = match;
+                let ansMatch = qBlock.match(/Respuesta correcta:\s*([A-Z])/i);
+                let correct = ansMatch ? ansMatch[1].toUpperCase() : '';
                 
-                let justMatch = block.match(/Justificaci\u00f3n.*?\:\s*(.*)$/si);
-                if (!justMatch) justMatch = block.match(/Justificación.*?\:\s*(.*)$/si);
-                if (!justMatch) justMatch = block.match(/Justificación(?:[^:]*):?\s*(.*)$/si);
-        
-                if (qText && optAMatch && optBMatch && optCMatch && respMatch) {
+                let justMatch = qBlock.match(/Justificaci[óo]n:\s*([\s\S]*)/i);
+                let just = justMatch ? justMatch[1].trim() : 'Sin justificación.';
+                
+                let beforeAns = qBlock.split(/Respuesta correcta:/i)[0];
+                let parts = beforeAns.split(/\s*([A-F]\s*\))\s*/i);
+                let qText = parts[0].trim();
+                let options = [];
+                for (let i = 1; i < parts.length; i += 2) {
+                    if (parts[i] && parts[i+1] !== undefined) {
+                        options.push({
+                            id: parts[i].replace(/[^A-Za-z]/g, '').toUpperCase(),
+                            text: parts[i+1].trim()
+                        });
+                    }
+                }
+                
+                if (qText && options.length >= 2 && correct) {
                     questions.push({
                         id: idCounter++,
                         text: qText.replace(/\n/g, ' '),
-                        options: [
-                            { id: "A", text: optAMatch[1].trim().replace(/\n/g, ' ') },
-                            { id: "B", text: optBMatch[1].trim().replace(/\n/g, ' ') },
-                            { id: "C", text: optCMatch[1].trim().replace(/\n/g, ' ') }
-                        ],
-                        correctId: respMatch[1].toUpperCase(),
-                        justification: justMatch ? justMatch[1].trim().replace(/\n/g, ' ') : "Sin justificación."
+                        options: options.map(o => ({ id: o.id, text: o.text.replace(/\n/g, ' ') })),
+                        correctId: correct,
+                        justification: just.replace(/\n/g, ' ')
                     });
                 }
             }
