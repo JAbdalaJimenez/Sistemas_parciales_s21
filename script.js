@@ -328,7 +328,7 @@ function renderDashboard() {
                     let just = justMatch ? justMatch[1].trim() : '';
                     
                     let beforeAns = qBlock.split(/Respuesta correcta:/i)[0];
-                    let parts = beforeAns.split(/\s*([A-Z]\)\s*)/);
+                    let parts = beforeAns.split(/\s*([A-Z]\)\s*)/i);
                     let qText = parts[0].trim();
                     let options = [];
                     for (let i = 1; i < parts.length; i += 2) {

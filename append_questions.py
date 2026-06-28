@@ -332,7 +332,7 @@ def parse_questions():
         just = justMatch.group(1).strip() if justMatch else ''
         
         beforeAns = re.split(r'Respuesta correcta:', qBlock, flags=re.IGNORECASE)[0]
-        parts = re.split(r'\s*([A-Z]\)\s*)', beforeAns)
+        parts = re.split(r'\s*([A-Z]\)\s*)', beforeAns, flags=re.IGNORECASE)
         qText = parts[0].strip()
         
         options = []
