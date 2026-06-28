@@ -2,7 +2,7 @@ const fs = require('fs');
 
 const text = fs.readFileSync('questions.txt', 'utf8');
 const questions = [];
-const regex = /Pregunta \d+(.*?)(?=A\))A\) (.*?)(?=B\))B\) (.*?)(?=C\))C\) (.*?)(?=D\)|Respuesta correcta:)(?:D\) (.*?))?Respuesta correcta: ([A-D])Justificación: (.*?)(?=Pregunta \d+|$)/gs;
+const regex = /Pregunta\s*\d+\s*(.*?)(?=A\))A\)\s*(.*?)(?=B\))B\)\s*(.*?)(?=C\))C\)\s*(.*?)(?=D\)|Respuesta correcta:)(?:D\)\s*(.*?))?Respuesta correcta:\s*([A-D])(?:\s*Justificación:\s*(.*?))?(?=\s*Pregunta\s*\d+|$)/gis;
 
 let match;
 let count = 1;

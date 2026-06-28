@@ -311,7 +311,7 @@ def parse_questions():
     questions = []
     
     # regex for new format
-    pattern = r'PREGUNTA \d+(.*?)(?=A\))A\) (.*?)(?=B\))B\) (.*?)(?=C\))C\) (.*?)(?=D\)|Respuesta correcta:)(?:D\) (.*?))?Respuesta correcta: ([A-D])\s*Justificación: (.*?)(?=PREGUNTA \d+|$)'
+    pattern = r'PREGUNTA\s*\d+\s*(.*?)(?=A\))A\)\s*(.*?)(?=B\))B\)\s*(.*?)(?=C\))C\)\s*(.*?)(?=D\)|Respuesta correcta:)(?:D\)\s*(.*?))?Respuesta correcta:\s*([A-D])(?:\s*Justificación:\s*(.*?))?(?=\s*PREGUNTA\s*\d+|$)'
     matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
     
     # read existing json to get next ID

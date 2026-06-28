@@ -312,26 +312,54 @@ function renderDashboard() {
 
         let parsedQuestions = [];
         try {
-            parsedQuestions = JSON.parse(questionsInput.value.trim());
+            const rawText = questionsInput.value.trim();
+            if (rawText.startsWith('[')) {
+                parsedQuestions = JSON.parse(rawText);
+            } else {
+                // Parse as plain text with Regex
+                const regex = /Pregunta\s*\d+\s*(.*?)(?=A\))A\)\s*(.*?)(?=B\))B\)\s*(.*?)(?=C\))C\)\s*(.*?)(?=D\)|Respuesta correcta:)(?:D\)\s*(.*?))?Respuesta correcta:\s*([A-D])(?:\s*Justificación:\s*(.*?))?(?=\s*Pregunta\s*\d+|$)/gis;
+                let match;
+                while ((match = regex.exec(rawText)) !== null) {
+                    let [full, q_text, a, b, c, d, correct, just] = match;
+                    const options = [
+                        { id: 'A', text: (a || '').trim() },
+                        { id: 'B', text: (b || '').trim() },
+                        { id: 'C', text: (c || '').trim() }
+                    ];
+                    if (d) {
+                        options.push({ id: 'D', text: d.trim() });
+                    }
+                    parsedQuestions.push({
+                        id: 0, // will be reassigned
+                        text: (q_text || '').trim(),
+                        options,
+                        correctId: (correct || '').trim().toUpperCase(),
+                        justification: (just || '').trim()
+                    });
+                }
+            }
+
             if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-                throw new Error('El JSON debe ser un array no vacío de preguntas.');
+                throw new Error('No se encontraron preguntas válidas. Revisa el formato JSON o el texto plano.');
             }
             for (const q of parsedQuestions) {
-                if (!q.text || !q.correctId || !q.justification || !Array.isArray(q.options) || q.options.length < 2) {
-                    throw new Error('Cada pregunta del JSON debe contener: text, correctId, justification, y un array de options.');
+                if (!q.text || !q.correctId || !Array.isArray(q.options) || q.options.length < 2) {
+                    throw new Error('Faltan campos obligatorios en una o más preguntas.');
                 }
             }
         } catch (err) {
-            alert('Error en el formato de preguntas (JSON): ' + err.message);
+            alert('Error al procesar las preguntas: ' + err.message);
             return;
         }
 
         if (name) {
+            // Check for existing subject (case-insensitive) to avoid duplicates
             let existingSubject = state.subjects.find(s => s.name.toLowerCase() === name.toLowerCase());
             let subjectId;
             
             if (existingSubject) {
                 subjectId = existingSubject.id;
+                // If the subject exists but this exam instance doesn't, add it
                 if (!existingSubject.exams.includes(examName)) {
                     existingSubject.exams.push(examName);
                 }
@@ -348,13 +376,35 @@ function renderDashboard() {
             render();
 
             try {
-                // Guardar la materia
+                // Guardar la materia actualizada
                 await set(ref(db, `subjects/${subjectId}`), existingSubject);
-                // Guardar las preguntas para este parcial específico
-                await set(ref(db, `questions/${subjectId}/${examName}`), parsedQuestions);
-                alert(`¡Materia "${name}" y preguntas para "${examName}" guardadas con éxito!`);
+                
+                // Recuperar las preguntas existentes de esa materia y parcial (si existen)
+                const questionsRef = ref(db, `questions/${subjectId}/${examName}`);
+                const snapshot = await get(questionsRef);
+                let finalQuestions = [];
+                
+                if (snapshot.exists()) {
+                    let existingQs = snapshot.val();
+                    if (Array.isArray(existingQs)) {
+                        finalQuestions = existingQs.filter(Boolean);
+                    } else if (typeof existingQs === 'object') {
+                        finalQuestions = Object.values(existingQs);
+                    }
+                }
+                
+                // Reasignar IDs para evitar duplicados y agregar al array final
+                const currentLength = finalQuestions.length;
+                parsedQuestions.forEach((q, index) => {
+                    q.id = currentLength + index + 1;
+                    finalQuestions.push(q);
+                });
+
+                // Guardar el listado completo (existentes + nuevas)
+                await set(questionsRef, finalQuestions);
+                alert(`¡Materia "${existingSubject.name}" actualizada! Se agregaron ${parsedQuestions.length} preguntas nuevas a "${examName}".`);
             } catch (err) {
-                console.error("Error al guardar la materia en Firebase:", err);
+                console.error("Error al guardar en Firebase:", err);
                 alert("Error al intentar guardar en la base de datos.");
             }
         }
@@ -479,17 +529,19 @@ function renderQuiz() {
         const feedbackTitleColor = isCorrect ? "text-green-700" : "text-red-700";
         const feedbackIcon = isCorrect ? "check-circle" : "alert-circle";
         
-        html += `
-            <div class="fade-in mb-6 ${feedbackColor} border rounded-xl p-6 shadow-sm">
-                <div class="flex items-center gap-2 mb-3 ${feedbackTitleColor}">
-                    <i data-lucide="${feedbackIcon}" class="h-5 w-5"></i>
-                    <h4 class="font-bold uppercase tracking-wider text-sm">Justificación Teórica</h4>
+        if (currentQ.justification) {
+            html += `
+                <div class="fade-in mb-6 ${feedbackColor} border rounded-xl p-6 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3 ${feedbackTitleColor}">
+                        <i data-lucide="${feedbackIcon}" class="h-5 w-5"></i>
+                        <h4 class="font-bold uppercase tracking-wider text-sm">Justificación Teórica</h4>
+                    </div>
+                    <div class="leading-relaxed">
+                        ${currentQ.justification}
+                    </div>
                 </div>
-                <div class="leading-relaxed">
-                    ${currentQ.justification}
-                </div>
-            </div>
-        `;
+            `;
+        }
     }
 
     html += `
@@ -714,19 +766,20 @@ function evaluateAnswer() {
         const feedbackTitleColor = isCorrect ? "text-green-700" : "text-red-700";
         const feedbackIcon = isCorrect ? "check-circle" : "alert-circle";
         
-        const feedbackHtml = `
-            <div class="fade-in mb-6 ${feedbackColor} border rounded-xl p-6 shadow-sm" id="feedback-container">
-                <div class="flex items-center gap-2 mb-3 ${feedbackTitleColor}">
-                    <i data-lucide="${feedbackIcon}" class="h-5 w-5"></i>
-                    <h4 class="font-bold uppercase tracking-wider text-sm">Justificación Teórica</h4>
+        if (currentQ.justification) {
+            const feedbackHtml = `
+                <div class="fade-in mb-6 ${feedbackColor} border rounded-xl p-6 shadow-sm" id="feedback-container">
+                    <div class="flex items-center gap-2 mb-3 ${feedbackTitleColor}">
+                        <i data-lucide="${feedbackIcon}" class="h-5 w-5"></i>
+                        <h4 class="font-bold uppercase tracking-wider text-sm">Justificación Teórica</h4>
+                    </div>
+                    <div class="leading-relaxed">
+                        ${currentQ.justification}
+                    </div>
                 </div>
-                <div class="leading-relaxed">
-                    ${currentQ.justification}
-                </div>
-            </div>
-        `;
-        
-        optionsContainer.parentElement.insertAdjacentHTML('beforeend', feedbackHtml);
+            `;
+            optionsContainer.parentElement.insertAdjacentHTML('beforeend', feedbackHtml);
+        }
         
         const btnContainer = document.getElementById('action-btn-container');
         if (btnContainer) {
